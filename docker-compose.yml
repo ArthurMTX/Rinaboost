@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  rinaboost:
+    build: .
+    volumes:
+      - ./app:/app
+      - ./config:/etc/openvpn
+    command: >
+      sh -c "echo 'Starting VPN...' &&
+             openvpn --config /etc/openvpn/nordvpn.ovpn --askpass /etc/openvpn/vpn-password.txt &
+             sleep 10 &&
+             echo 'Starting bot...' &&
+             node bot.js"

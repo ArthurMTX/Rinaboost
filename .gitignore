@@ -1,0 +1,9 @@
+/app/node_modules/
+/app/package-lock.json
+/.idea/discord.xml
+/.idea/modules.xml
+/config/nordvpn.ovpn
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/Rinaboost.iml
+/.idea/vcs.xml
+/config/vpn-password.txt
