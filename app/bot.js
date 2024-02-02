@@ -7,21 +7,14 @@ const requiredConfig = {
     MINECRAFT_SERVER_IP: "l'adresse IP du serveur",
     MINECRAFT_SERVER_VERSION: "la version du serveur",
     MINECRAFT_ALT_RINAORC_PASSWORD: "le mot de passe du bot",
-    MINECRAFT_BOT_PSEUDOS: "au moins un pseudo de bot"
+    MINECRAFT_BOT_PSEUDOS: "au moins un pseudo de bot",
+    RINAORC_API_KEY: "la clé API de Rinaorc"
 };
-
-for (const [key, message] of Object.entries(requiredConfig)) {
-    const value = config[key];
-    if (!value || (Array.isArray(value) && value.length === 0)) {
-        error(`Veuillez renseigner ${message} dans le fichier config.json`);
-        process.exit(1);
-    }
-}
-
-if (staffs.length === 0) {
-    error(`Veuillez renseigner au moins un staff dans le fichier staffs.json`);
-    process.exit(1);
-}
+const commands = {
+    '!exec': exec,
+    '!stats': stats,
+    '!whereami': whereami
+};
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -37,10 +30,12 @@ function info(message) {
     console.log('\x1b[33m%s\x1b[0m', '[!] ' + message)
 }
 
-async function main() {
-    for (let pseudo of config.MINECRAFT_BOT_PSEUDOS) {
-        await createBot(pseudo);
-        await sleep(5000);
+function handleCommand(message, bot, pseudo) {
+    const command = message.split(' ')[0];
+    if (commands.hasOwnProperty(command)) {
+        return commands[command](message, bot, pseudo);
+    } else {
+        return 'Commande inconnue.';
     }
 }
 
@@ -74,97 +69,237 @@ async function createBot(username) {
     });
 
     bot.on('message', async message => {
-        console.log(message.toAnsi())
+        console.log(message.toAnsi());
+        const messageText = message.toString();
 
-        if (message.toString().startsWith('Enregistrez-vous avez: "/register (motdepasse)"')){
-            info(`Message d'enregistrement reçu. Enregistrement en cours avec le bot ${username}...`)
-            bot.chat('/register ' + config.MINECRAFT_ALT_RINAORC_PASSWORD)
-            await sleep(1000)
+        if (messageText.startsWith('Enregistrez-vous avec: "/register (motdepasse)"') || messageText.startsWith('Connectez vous avec: "/login (motdepasse)"')) {
+            await handleLogin(messageText, bot, config.MINECRAFT_ALT_RINAORC_PASSWORD);
+        } else if (messageText.startsWith('⚑ ➥ De')) {
+            const origin = `chat`;
+            const {pseudo, playerMessage} = extractSenderAndMessage(messageText, origin);
+            bot.whisper(pseudo, await handleCommand(playerMessage, bot, pseudo));
+        } else if (messageText.startsWith('Clan >')) {
+            const origin = `clan`;
+            const {pseudo, playerMessage} = extractSenderAndMessage(messageText, origin);
+            bot.chat(`/c c ${await handleCommand(playerMessage, bot, pseudo)}`);
         }
-
-        if (message.toString().startsWith('Connectez vous avec: "/login (motdepasse)"')){
-            info(`Message de connexion reçu. Connexion en cours avec le bot ${username}...`)
-            bot.chat('/login ' + config.MINECRAFT_ALT_RINAORC_PASSWORD)
-            await sleep(1000)
-        }
-
-        if (message.toString().startsWith('⚑ ➥ De')) {
-            success(`Message privé reçu sur ${username}.`)
-            const messageParts = message.toString().split(' ');
-            let playerName = messageParts[3];
-            playerName = playerName.slice(0, playerName.length - 1);
-            let playerMessage = messageParts.slice(4).join(' ');
-
-            if (playerMessage.startsWith(' ')) {
-                playerMessage = playerMessage.slice(1);
-            }
-
-            switch (true) {
-                case playerMessage.startsWith('!exec'):
-                    exec(playerMessage, bot, playerName);
-                    break;
-            }
-        }
-        if (message.toString().startsWith('Clan >')) {
-            const messageParts = message.toString().split(' ');
-
-            let pseudo = messageParts.find((part) => part.endsWith(':'));
-            const indexOfPseudo = messageParts.indexOf(pseudo);
-
-            if (pseudo) {
-                pseudo = pseudo.slice(0, pseudo.length - 1);
-
-                let message = messageParts.slice(indexOfPseudo + 1).join(' ');
-
-                if (message.startsWith(' ')) {
-                    message = message.slice(1);
-                }
-
-                if (message.startsWith('!exec')) {
-                    exec(message, bot, pseudo);
-                }
-            }
-        }
-    })
+    });
 
 bot.on('error', console.error);
 bot.on('kicked', console.log);
 }
 
-function exec(message, bot, pseudo) {
-    const command = message.slice(6);
-    if (!checkIfStaff(pseudo)){
-        return;
+function verifyConfigAndStaffs() {
+    for (const [key, message] of Object.entries(requiredConfig)) {
+        const value = config[key];
+        if (!value || (Array.isArray(value) && value.length === 0)) {
+            error(`Veuillez renseigner ${message} dans le fichier config.json`);
+            process.exit(1);
+        }
     }
 
-    if (command) {
-        bot.chat(command);
-    } else {
-        bot.whisper(pseudo, 'Aucune intéraction spécifiée.');
+    if (staffs.length === 0) {
+        error(`Veuillez renseigner au moins un staff dans le fichier staffs.json`);
+        process.exit(1);
     }
+}
+
+function extractSenderAndMessage(message, origin) {
+    if (origin === 'chat') {
+        const messageParts = message.toString().split(' ');
+        let playerName = messageParts[3];
+        playerName = playerName.slice(0, playerName.length - 1);
+        let playerMessage = messageParts.slice(4).join(' ');
+        return {pseudo: playerName, playerMessage};
+    } else if (origin === 'clan') {
+        const messageParts = message.toString().split(' ');
+        let pseudo = messageParts.find((part) => part.endsWith(':'));
+        const indexOfPseudo = messageParts.indexOf(pseudo);
+        if (pseudo) {
+            pseudo = pseudo.slice(0, pseudo.length - 1);
+            let message = messageParts.slice(indexOfPseudo + 1).join(' ');
+            if (message.startsWith(' ')) {
+                message = message.slice(1);
+            }
+            return {pseudo, playerMessage: message};
+        }
+    }
+}
+
+async function handleLogin(message, bot, password) {
+    const command = message.includes('/register') ? '/register ' : '/login ';
+    bot.chat(command + password);
+    await sleep(1000);
+}
+
+async function exec(message, bot, pseudo) {
+    if (!checkIfStaff(pseudo)) return;
+    const command = message.slice(6);
+    if (command) bot.chat(command);
+    else bot.whisper(pseudo, 'Aucune interaction spécifiée.');
+}
+
+async function stats(message) {
+    const playerToCheck = message.split(' ')[1];
+    const regex = /^[a-zA-Z0-9_]+$/;
+
+    if (!playerToCheck || !regex.test(playerToCheck)) {
+        return 'Pseudo invalide ou aucun pseudo spécifié. !stats <pseudo>';
+    }
+
+    try {
+        const results = await Promise.all([
+            getPseudo(playerToCheck),
+            getFKDR(playerToCheck),
+            getWS(playerToCheck),
+            getWL(playerToCheck),
+            getKD(playerToCheck),
+            getStars(playerToCheck),
+            getPlayTime(playerToCheck),
+        ]);
+
+        const [pseudo, fkdr, ws, wl, kd, stars, playTime] = results;
+        const formattedPseudo = pseudo || playerToCheck.slice(0, 16);
+        return `${formattedPseudo} : FKDR : ${fkdr || 0} | WS : ${ws || 0} | WL : ${wl || 0} | KD : ${kd || 0} | Stars : ${stars || 0} | Time : ${playTime || 0}`;
+    } catch (e) {
+        return 'Impossible de récupérer les statistiques de ce joueur.';
+    }
+}
+
+function whereami(message, bot) {
+    let lobby = getLobby(bot.scoreboard);
+    return `Je me situe ici : ${lobby}`;
 }
 
 function getLobby(scoreboard) {
     let itemsMap = scoreboard.sidebar.itemsMap;
-    try{
-        let lobbyNumber;
-        for (let key in itemsMap) {
-            if (key.includes("Lobby")) {
-                let lobbyItem = itemsMap[key];
-                lobbyNumber = lobbyItem.displayName.extra[0].extra[0].text;
-                break;
-            }
+
+    try {
+        const lobbyKey = Object.keys(itemsMap).find(key => key.includes("Lobby"));
+        if (lobbyKey) {
+            const lobbyItem = itemsMap[lobbyKey];
+            return `Lobby principal ${lobbyItem.displayName.extra[0].extra[0].text}`;
+        } else {
+            const regexAntiColor = /§[a-f0-9klmnor]/gi;
+            return scoreboard[1].title.replace(regexAntiColor, '').replaceAll('╸', '').trim();
         }
-        return lobbyNumber;
-    }
-    catch (e) {
-        error('Impossible de récupérer le lobby');
+    } catch (e) {
+        console.error('Impossible de récupérer le lobby', e);
         return 'unknown';
     }
 }
 
 function checkIfStaff(pseudo){
     return !!staffs.includes(pseudo);
+}
+
+async function getPlayerData(pseudo) {
+    const rinaorcAPI = `https://api.rinaorc.com/player/${pseudo}`;
+    const rinaorcResponse = await fetch(rinaorcAPI, {
+        headers: {
+            'API-Key': config.RINAORC_API_KEY,
+        }
+    });
+
+    const rinaorcDATA = await rinaorcResponse.json();
+
+    if (rinaorcDATA.success === false) {
+        error(`Impossible de récupérer les données de ${pseudo} : ${rinaorcDATA.error}`)
+        return null;
+    }
+
+    return rinaorcDATA;
+}
+
+async function getFKDR(pseudo) {
+    try {
+        const playerData = await getPlayerData(pseudo);
+        const bw_finalKills_total_all = playerData.player.stats.bedwars.finalKills.total.all || 0;
+        if (!playerData.player.stats.bedwars.finalDeaths) return bw_finalKills_total_all;
+        const bw_finalDeaths_total_all = playerData.player.stats.bedwars.finalDeaths.total.all || 0;
+        if (bw_finalDeaths_total_all === 0) return bw_finalKills_total_all;
+        return (bw_finalKills_total_all / bw_finalDeaths_total_all).toFixed(2);
+    } catch (e) {
+        error(`Impossible de récupérer les données de ${pseudo} (FKDR) : ${e}`);
+        return null;
+    }
+}
+
+async function getWS(pseudo) {
+    try {
+        const playerData = await getPlayerData(pseudo);
+        return playerData.player.games.bedwars.winStreak;
+    } catch (e) {
+        error(`Impossible de récupérer les données de ${pseudo} (WS) : ${e}`);
+        return null;
+    }
+}
+
+async function getWL(pseudo) {
+    try {
+        const playerData = await getPlayerData(pseudo);
+        const bw_wins_total_all = playerData.player.stats.bedwars.wins.total.all;
+        const bw_played_total_all = playerData.player.stats.bedwars.played.total.all;
+        const bw_losses_total_all = bw_played_total_all - bw_wins_total_all;
+        if (bw_losses_total_all === 0) return bw_wins_total_all;
+        return (bw_wins_total_all / bw_losses_total_all).toFixed(2);
+    } catch (e) {
+        error(`Impossible de récupérer les données de ${pseudo} (WL) : ${e}`);
+        return null;
+    }
+}
+
+async function getKD(pseudo) {
+    try {
+        const playerData = await getPlayerData(pseudo);
+        const bw_kills_total_all = playerData.player.stats.bedwars.kills.total.all;
+        const bw_deaths_total_all = playerData.player.stats.bedwars.deaths.total.all;
+        return (bw_kills_total_all / bw_deaths_total_all).toFixed(2);
+    } catch (e) {
+        error(`Impossible de récupérer les données de ${pseudo} (KD) : ${e}`);
+        return null;
+    }
+}
+
+async function getStars(pseudo) {
+    try {
+        const playerData = await getPlayerData(pseudo);
+        return playerData.player.games.bedwars.level;
+    } catch (e) {
+        error(`Impossible de récupérer les données de ${pseudo} (Stars) : ${e}`);
+        return null;
+    }
+}
+
+async function getPlayTime(pseudo){
+    try {
+        const playerData = await getPlayerData(pseudo);
+        const totalPlayTime = playerData.player.totalPlayedTime;
+        const totalHours = totalPlayTime / 3600000;
+        const roundedHours = totalHours.toFixed(2);
+        return (roundedHours + 'h');
+    } catch (e) {
+        error(`Impossible de récupérer les données de ${pseudo} (PlayTime) : ${e}`);
+        return null;
+    }
+}
+
+async function getPseudo(pseudo){
+    try {
+        const playerData = await getPlayerData(pseudo);
+        return playerData.player.name;
+    } catch (e) {
+        error(`Impossible de récupérer les données de ${pseudo} (Pseudo) : ${e}`);
+        return null;
+    }
+}
+
+async function main() {
+    verifyConfigAndStaffs();
+    for (let pseudo of config.MINECRAFT_BOT_PSEUDOS) {
+        await createBot(pseudo);
+        await sleep(5000);
+    }
 }
 
 main().catch(console.error);
