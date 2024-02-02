@@ -72,7 +72,7 @@ async function createBot(username) {
         console.log(message.toAnsi());
         const messageText = message.toString();
 
-        if (messageText.startsWith('Enregistrez-vous avec: "/register (motdepasse)"') || messageText.startsWith('Connectez vous avec: "/login (motdepasse)"')) {
+        if (messageText.startsWith('Enregistrez-vous avez: "/register (motdepasse)"') || messageText.startsWith('Connectez vous avec: "/login (motdepasse)"')) {
             await handleLogin(messageText, bot, config.MINECRAFT_ALT_RINAORC_PASSWORD);
         } else if (messageText.startsWith('⚑ ➥ De')) {
             const origin = `chat`;
