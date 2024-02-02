@@ -1,13 +1,15 @@
 <div align="center">
 
-<img src="https://mtx.dev/assets/img/rinaboost.png" alt="Rinaboost logo">
+<img src="https://mtx.dev/assets/img/rinaboost.png" alt="Rinaboost logo"> <hr>
 
-**Outil de boost pour le serveur Minecraft Rinaorc.**
+**Outil de boost pour le serveur Minecraft Rinaorc**
 
 Ce bot permet de se connecter à plusieurs comptes en même temps et de pouvoir les controller a travers le chat. Il est possible de configurer des comptes a privilèges qui peuvent utiliser des commandes spéciales.
 
 [Installation](#installation) | [Configuration](#configuration) | [Utilisation](#utilisation) | [Contact](#contact)
 </div>
+
+<hr>
 
 # Sommaire
 
