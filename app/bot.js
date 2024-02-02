@@ -72,18 +72,43 @@ async function createBot(username) {
         console.log(message.toAnsi());
         const messageText = message.toString();
 
-        if (messageText.startsWith('Enregistrez-vous avez: "/register (motdepasse)"') || messageText.startsWith('Connectez vous avec: "/login (motdepasse)"')) {
-            await handleLogin(messageText, bot, config.MINECRAFT_ALT_RINAORC_PASSWORD);
-        } else if (messageText.startsWith('⚑ ➥ De')) {
-            const origin = `chat`;
-            const {pseudo, playerMessage} = extractSenderAndMessage(messageText, origin);
-            bot.whisper(pseudo, await handleCommand(playerMessage, bot, pseudo));
+        const shouldIgnoreMessage = (messageText, botUsername) => {
+            return !!(messageText.startsWith('Enregistrez-vous avez: "/register (motdepasse)"') ||
+                messageText.startsWith('Connectez vous avec: "/login (motdepasse)"') ||
+                messageText.includes('vient de rejoindre le clan !') ||
+                messageText.includes('vient de se faire éjecter du clan.') ||
+                !messageText.includes('!') ||
+                messageText.endsWith('!')) ||
+                messageText === '!';
+        };
+
+        if (shouldIgnoreMessage(messageText, bot.username)) return;
+
+        let origin, commandPrefix;
+        if (messageText.startsWith('⚑ ➥ De')) {
+            origin = `chat`;
+            commandPrefix = '';
         } else if (messageText.startsWith('Clan >')) {
-            const origin = `clan`;
-            const {pseudo, playerMessage} = extractSenderAndMessage(messageText, origin);
-            bot.chat(`/c c ${await handleCommand(playerMessage, bot, pseudo)}`);
+            origin = `clan`;
+            commandPrefix = '/c c ';
+        } else {
+            await handleLogin(messageText, bot, config.MINECRAFT_ALT_RINAORC_PASSWORD);
+            return;
+        }
+
+        const {pseudo, playerMessage} = extractSenderAndMessage(messageText, origin);
+        if (pseudo === bot.username || !playerMessage.startsWith(`!`)) return;
+
+        const response = await handleCommand(playerMessage, bot, pseudo);
+        if (response) {
+            if (origin === 'clan') {
+                bot.chat(`${commandPrefix}${response}`);
+            } else {
+                bot.whisper(pseudo, response);
+            }
         }
     });
+
 
 bot.on('error', console.error);
 bot.on('kicked', console.log);
@@ -135,7 +160,7 @@ async function handleLogin(message, bot, password) {
 async function exec(message, bot, pseudo) {
     if (!checkIfStaff(pseudo)) return;
     const command = message.slice(6);
-    if (command) bot.chat(command);
+    if (command) bot.chat(await command);
     else bot.whisper(pseudo, 'Aucune interaction spécifiée.');
 }
 
