@@ -13,7 +13,8 @@ const requiredConfig = {
 const commands = {
     '!exec': exec,
     '!stats': stats,
-    '!whereami': whereami
+    '!whereami': whereami,
+    '!discordlink': discordlink
 };
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -70,6 +71,7 @@ async function createBot(username) {
 
     bot.on('message', async message => {
         console.log(message.toAnsi());
+
         const messageText = message.toString();
 
         if (messageText.includes('Connectez vous avec: "/login (motdepasse)"') || messageText.includes('Enregistrez-vous avez: "/register (motdepasse)"')) {
@@ -87,6 +89,7 @@ async function createBot(username) {
         if (shouldIgnoreMessage(messageText, bot.username)) return;
 
         let origin, commandPrefix;
+
         if (messageText.startsWith('⚑ ➥ De')) {
             origin = `chat`;
             commandPrefix = '';
@@ -95,7 +98,17 @@ async function createBot(username) {
             commandPrefix = '/c c ';
         }
 
-        const {pseudo, playerMessage} = extractSenderAndMessage(messageText, origin);
+        let pseudo, playerMessage;
+
+        try {
+            const extractedData = extractSenderAndMessage(messageText, origin);
+            pseudo = extractedData.pseudo || 'unknown'
+            playerMessage = extractedData.playerMessage || 'unknown'
+        }
+        catch (e) {
+            // ignore
+        }
+        if (!pseudo || !playerMessage) return;
         if (pseudo === bot.username || !playerMessage.startsWith(`!`)) return;
 
         const response = await handleCommand(playerMessage, bot, pseudo);
@@ -325,6 +338,20 @@ async function main() {
         await createBot(pseudo);
         await sleep(5000);
     }
+}
+
+async function discordlink(message, bot, pseudo) {
+    if (!checkIfStaff(pseudo)) return;
+    await bot.chat('/discord');
+    bot._client.on('chat', (packet) => {
+        const msg = JSON.parse(packet.message)
+        if (msg.clickEvent) {
+            info(`Voici le lien discord : ${msg.clickEvent.value}`)
+            return 'Lien discord envoyé en console.'
+        } else {
+            return 'Impossible de récupérer le lien discord.'
+        }
+    })
 }
 
 main().catch(console.error);
