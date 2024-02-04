@@ -64,6 +64,7 @@ Configuration d'exemple pour le fichier `config.json` :
 
 ```json
 {
+  "RINAORC_API_KEY": "",
   "MINECRAFT_SERVER_IP" : "play.rinaorc.com",
   "MINECRAFT_SERVER_VERSION" : "1.8.9",
   "MINECRAFT_ALT_RINAORC_PASSWORD" : "m0td3p4ss3",
